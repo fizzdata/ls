@@ -142,7 +142,7 @@ Sub MyDeletePages()
         lActivePage = 0
     End If
     
-    NoOfPages = CInt(ThisWorkbook.Sheets("Settings").Range("B11"))
+    NoOfPages = CInt(ThisWorkbook.Sheets("NewLayout").Range("U1"))
     If NoOfPages = 0 Then Exit Sub
     
     frmDelPages.Show (vbModal)
@@ -454,10 +454,10 @@ If IDP Then Exit Sub
         lActivePage = 0
     End If
     
-    NoOfPages = CInt(ThisWorkbook.Sheets("Settings").Range("B11"))
+    NoOfPages = CInt(ThisWorkbook.Sheets("NewLayout").Range("U1"))
     If NoOfPages = 0 Then Exit Sub
     
-    load frmAddPages
+    Load frmAddPages
     frmAddPages.SetPageAfter (IIf(lActivePage = 0, 1, lActivePage))
     frmAddPages.Show (vbModal)
     If frmAddPages.GetRetVal <> 1 Then
@@ -932,7 +932,7 @@ Attribute CheckPages.VB_ProcData.VB_Invoke_Func = "c\n14"
     
     fDrawPageOne = LCase(ThisWorkbook.Sheets("additional_Settings").Range("Assign_Ads_in_Page_1")) = "yes"
     lMinPages = IIf(fDrawPageOne, 1, 2)
-    lMaxPages = ThisWorkbook.Sheets("Settings").Range("B11").value
+    lMaxPages = ThisWorkbook.Sheets("NewLayout").Range("U1").value
 '    lMinPages = 2
 '    lMaxPages = UBound(PagesArr)
 '    If lMinPages < 2 Then lMinPages = 2
@@ -1158,310 +1158,10 @@ Sub FillGradient(r As Range, ByVal lPrecent As Long)
     End If
 End Sub
 
-
-Sub BuildLayout()
-    If IDP Then Exit Sub
-    Const StrokeWidth As Double = 1.38888888888889E-02
-    Dim nName As Name
-    Dim cPages As New Collection
-    Dim cPUnits As New Collection
-    Dim cPUnitsSizes As New Collection
-    Dim cpUnitsPositions As New Collection
-    Dim cUnits As Collection
-    Dim cUnitsSizes As Collection
-    Dim cUnitsColumns As Collection
-    Dim cUnitsPositions As Collection
-    Dim x As Long, Y As Long, z As Long
-    Dim x2 As Long    'brojac za imena
-    Dim r As Range, rc As Range
-    Dim r2 As Range
-    Dim aSize(1 To 7)    'row,col,Indesign width,height,filename,jel bled [onda 1, inace 0], ad name
-    Dim aPos(1 To 2)    'top ,left
-    Dim vc As Variant
-    Dim lMaxPages As Long
-
-    Dim iDA   ' As InDesign.Application
-    Dim iDDoc   ' As InDesign.Document
-    Dim iDPage    'As InDesign.Page
-    Dim idColor    'As InDesign.Color
-    Dim iDRectangle    ' As InDesign.Rectangle
-    Dim myY1, myX1, myY2, myX2    'geometric bounds for rectangle
-    Dim sFile As String
-    Dim sTempFile As String    ' ako nema fajla [a upisano je nesto ko ad, ubaci to ko text]
-
-
-    Dim lMinPage As Long
-    Dim lNoOfPages As Long    'number of exported pages
-
-    Dim bOddPage As Boolean    '?
-    Dim bCS3fix As Boolean    'do not empty frames if cs3fix is active
-    Dim indesignFileName As String
-    
-    BuildNames ' added by Hussam
-    
-    If ThisWorkbook.Sheets("Settings").Range("CS3fix") = "Yes" Then bCS3fix = True
-
-'    If ThisWorkbook.Sheets("Settings").Range("IndesignTemplate").value = "" Then
-'        MsgBox "InDesign template is not defined!"
-'        Exit Sub
-'    ElseIf Dir(ThisWorkbook.Sheets("Settings").Range("IndesignTemplate").value) = "" Then
-'        MsgBox "InDesign template: " & ThisWorkbook.Sheets("Settings").Range("IndesignTemplate").value & " is not found!"
-'        Exit Sub
-'    End If
-   
-    indesignFileName = ThisWorkbook.Worksheets("Settings").Range("IndesignTemplate").value
-    If indesignFileName = "" Then
-        indesignFileName = ThisWorkbook.Path & Application.PathSeparator & "Indesign" & Application.PathSeparator & "template.indd"
-    End If
-    If Dir(indesignFileName) = "" Then
-        MsgBox "InDesign template: " & indesignFileName & " is not found!"
-        Exit Sub
-    End If
-
-'    If ThisWorkbook.Sheets("Settings").Range("IndesignTemplate").value = "" Then
-'        MsgBox "InDesign template is not defined!"
-'        Exit Sub
-'    ElseIf Dir(ThisWorkbook.Sheets("Settings").Range("IndesignTemplate").value) = "" Then
-'        MsgBox "InDesign template: " & ThisWorkbook.Sheets("Settings").Range("IndesignTemplate").value & " is not found!"
-'        Exit Sub
-'    End If
-    If DirExists("C:\regkey") = False Then
-        MsgBox "Folder ""C:\regkey"" must be present!"
-        Exit Sub
-    End If
-
-    Dim dHbleed As Double, dVbleed As Double    'za bleed
-    dHbleed = val(ThisWorkbook.Sheets("Settings").Range("Bled_Size_Horizontal").value)
-    dVbleed = val(ThisWorkbook.Sheets("Settings").Range("Bled_Size_Vertical").value)
-
-    'ThisWorkbook.Sheets("Layout").Activate
-    ThisWorkbook.Sheets("NewLayout").Activate
-    
-    lMaxPages = ThisWorkbook.Sheets("Settings").Range("MaxNoPages").value
-
-    'add dummy pages at 1, to keep counters sinhronized. It was needed when Yaakov asked for removing of first page
-    Application.StatusBar = "Preparing..."
-    cPages.Add 0&
-    cPUnits.Add 0&
-    cPUnitsSizes.Add 0&
-    cpUnitsPositions.Add 0&
-
-    lMinPage = ThisWorkbook.Sheets("Settings").Range("MinPageNo").value
-    lNoOfPages = lMaxPages - lMinPage + 1
-    For x2 = lMinPage To lMaxPages
-'        SetPageRangeAddress (x2)
-'        Set NName = ThisWorkbook.Names("Page_" & x2)
-        
-        Set cUnits = New Collection
-        Set cUnitsSizes = New Collection
-        Set cUnitsPositions = New Collection
-
-'            tmpStr = NName.RefersTo
-'            vArr = Split(tmpStr, "!")
-'            Set r = ThisWorkbook.Sheets("NewLayout").Range(vArr(1))
-
-        
-        'Set r = NName.RefersToRange
-        Set r = GetPageRange(x2)
-
-        cPages.Add r
-        For Each rc In r.Cells
-            If rc.MergeCells = True Then
-                On Error Resume Next
-                cUnits.Add rc.MergeArea, rc.MergeArea.Address
-                On Error GoTo 0
-            Else
-                cUnits.Add rc
-            End If
-        Next rc
-        cPUnits.Add cUnits
-        For Each vc In cUnits
-            Set r2 = vc
-            aSize(1) = r2.rows.count
-            aSize(2) = r2.columns.count
-            aSize(3) = GetSizes(aSize(2), aSize(1))(1)
-            aSize(4) = GetSizes(aSize(2), aSize(1))(2)
-            'file name
-            aSize(5) = GetPathFromComment(r2)
-            'pokupi ime reklame
-            aSize(7) = r2.Cells(1).value
-            'old way
-            'aSize(5) = CStr(r2.Cells(1, 1).Value)
-            'determine color
-            'ne treba vise nema vise color i bw vadjenja, ime fajla i to je to
-            '            If r2.Cells(1, 1).Interior.Color = 65535 Then
-            '                'color
-            '                If aSize(5) <> "" Then
-            '
-            '
-            '                End If
-            '            Else    'bw
-            '                If aSize(5) <> "" Then
-            '                    sTempFile = GetFirstFile(CStr(aSize(5)), False)
-            '                    If sTempFile <> "" Then
-            '                        aSize(5) = sTempFile
-            '                    Else
-            '
-            '
-            '                    End If
-            '
-            '                End If
-            '
-            '            End If
-            If IsBleed(x2) = True Then
-                If aSize(1) = 4 And aSize(2) = 2 Then    'full page
-                    aSize(3) = GetBleedPageSizes()(1) + dHbleed + dHbleed
-                    aSize(4) = GetBleedPageSizes()(2) + dVbleed + dVbleed
-                End If
-            End If
-            cUnitsSizes.Add aSize
-            aPos(1) = GetPositions(r2.Cells(1, 1), r)(1)
-            aPos(2) = GetPositions(r2.Cells(1, 1), r)(2)
-            
-            If aSize(1) = 4 And aSize(2) = 2 Then    'full page
-                aPos(1) = ThisWorkbook.Sheets("Settings").Range("Full_Page_Position_1_Top").value
-                aPos(2) = ThisWorkbook.Sheets("Settings").Range("Full_Page_Position_1_Left").value
-            End If
-            If IsBleed(x2) = True Then
-                If aSize(1) = 4 And aSize(2) = 2 Then    'full page
-'                    aPos(1) = aPos(1) - dVbleed
-'                    aPos(2) = aPos(2) - dHbleed
-aPos(1) = ThisWorkbook.Sheets("Settings").Range("f24").value
-aPos(2) = ThisWorkbook.Sheets("Settings").Range("g24").value
-                End If
-            End If
-            cUnitsPositions.Add aPos
-        Next vc
-        cPUnitsSizes.Add cUnitsSizes
-        cpUnitsPositions.Add cUnitsPositions
-
-    Next x2
-
-    'id fun
-
-    Dim sw As New StopWatch
-    sw.StartTimer
-    Application.StatusBar = "Starting InDesign"
-    Set iDA = CreateObject("InDesign.Application")
-    Dim idalerts    'da vratim nivo kukanja na pocetni nivo
-    Dim idunitsHOR    'horizontalne jedinice
-    Dim idunitsVER    'vertikalne jedinice
-
-    idalerts = iDA.ScriptPreferences.UserInteractionLevel
-    iDA.ScriptPreferences.UserInteractionLevel = 1699640946    'idUserInteractionLevels.idNeverInteract
-    ' iDA.ScriptPreferences.EnableRedraw = False
-    'iDA.Visible = True
-    Set iDDoc = iDA.Open(Range("IndesignTemplate").value)
-    'Set iDDoc = iDA.Open(Range("IndesignTemplate").Value, False) 'otvara dok skrivenim prozorom. oko duplo brze!
-    iDA.Windows(1).Minimize    'ako je prozor skriven ovo pravi gresku!
-    ThisWorkbook.Activate
-    'set jedinice mere
-    idunitsHOR = iDDoc.ViewPreferences.HorizontalMeasurementUnits
-    iDDoc.ViewPreferences.HorizontalMeasurementUnits = 2053729891    'idMeasurementUnits.idInches
-    idunitsVER = iDDoc.ViewPreferences.HorizontalMeasurementUnits
-    iDDoc.ViewPreferences.VerticalMeasurementUnits = 2053729891    'idMeasurementUnits.idInches
-    ThisWorkbook.Activate
-
-    Application.StatusBar = "Adding pages to InDesign"
-    For x = lMinPage To lMaxPages
-        iDDoc.Pages.Add 1701733408    'idAtEnd
-        Application.StatusBar = "Adding pages to InDesign: " & x & " of " & lMaxPages
-    Next x
-
-    ' We'll need to create a color. Check to see if the color already exists.
-    On Error Resume Next
-    Set idColor = iDDoc.Colors.item("YaakovBlack")
-    If Error.Number <> 0 Then
-        Set idColor = iDDoc.Colors.Add
-        idColor.Name = "YaakovBlack"
-        idColor.Model = idColorModel.idProcess
-        idColor.ColorValue = Array(0, 0, 0, 100)
-        Error.Clear
-    End If
-    ' Resume normal error handling.
-    On Error GoTo 0
-    For x = 2 To lNoOfPages + 1
-        Application.StatusBar = "Creating boxes for page: " & x & " (of " & lNoOfPages & ")"
-        Set iDPage = iDDoc.Pages(x)
-        For Y = 1 To cPUnits(x).count
-            Set vc = cPUnits(x).item(Y)
-            myY1 = cpUnitsPositions(x).item(Y)(1)
-            myY2 = myY1 + cPUnitsSizes(x).item(Y)(4)
-
-            myX1 = cpUnitsPositions(x).item(Y)(2)
-            myX2 = myX1 + cPUnitsSizes(x).item(Y)(3)
-            sFile = cPUnitsSizes(x).item(Y)(5)
-            sTempFile = cPUnitsSizes(x).item(Y)(7)
-            Set iDRectangle = iDPage.Rectangles.Add
-            iDRectangle.GeometricBounds = Array(CDbl(myY1), CDbl(myX1), CDbl(myY2), CDbl(myX2))
-'            If ThisWorkbook.Worksheets("Settings").Range("BlackBorder").Value = "Yes" Then
-            If ThisWorkbook.Worksheets("Settings").Range("BlackBorder").value > 0 Then
-                iDRectangle.StrokeWeight = ThisWorkbook.Worksheets("Settings").Range("BlackBorder").value
-                iDRectangle.StrokeColor = iDDoc.Swatches.item("YaakovBlack")
-                iDRectangle.StrokeAlignment = 1936998729    ' idInsideAlignment
-            Else
-                iDRectangle.StrokeWeight = 0
-            End If
-            'iDRectangle.Place "c:\Users\shonius\Documents\Rad\Elance\2013-01-24 Excel to Indesign\files\links\New Age 119.pdf"
-            '            iDRectangle.Place "c:\Users\shonius\Documents\Rad\Elance\2013-01-24 Excel to Indesign\files\links\doctor WANNOUNU 103.tif"
-            If Len(sFile) > 0 And DirU(sFile) <> "" Then
-                If getExt(sFile) <> "indd" Then
-                    iDRectangle.place sFile
-                    iDRectangle.Fit 1668575078    'idFitOptions.idContentToFrame
-                Else
-                'omoguci ovo kad plati
-'                    iDA.ScriptPreferences.UserInteractionLevel = 1699311169
-                    iDRectangle.place sFile, True
-                    iDRectangle.Fit 1668575078    'idFitOptions.idContentToFrame
-                    'i ovo
-'                    iDA.ScriptPreferences.UserInteractionLevel = 1699640946
-                End If
-            Else
-                'set options for frame to fit when place file manually
-                If bCS3fix = False Then
-                    iDRectangle.FrameFittingOptions.AutoFit = True
-                    iDRectangle.FrameFittingOptions.FittingOnEmptyFrame = 1668575078    'idEmptyFrameFittingOptions.idContentToFrame
-                End If
-                If Len(sFile) > 0 And DirU(sFile) = "" Then
-                    If Range("WriteText").value = "Yes" Then
-                        ' Str2TXT CStr(sFile), ThisWorkbook.Path & "\mfile.txt"
-                        Str2TXT CStr(sFile), "C:\regkey\mfile.txt"
-                        'iDRectangle.Place ThisWorkbook.Path & "\mfile.txt"
-                        iDRectangle.place "C:\regkey\mfile.txt"
-                    End If
-                ElseIf Len(sFile) = 0 And Len(sTempFile) > 0 Then
-                    If Range("WriteText").value = "Yes" Then
-                        ' Str2TXT CStr(sFile), ThisWorkbook.Path & "\mfile.txt"
-                        Str2TXT CStr(sTempFile), "C:\regkey\mfile.txt"
-                        'iDRectangle.Place ThisWorkbook.Path & "\mfile.txt"
-                        iDRectangle.place "C:\regkey\mfile.txt"
-                    End If
-                End If
-            End If
-        Next Y
-        'Debug.Print cPUnits(x).Count
-    Next x
-    'vrati jedinice mere
-    iDDoc.ViewPreferences.HorizontalMeasurementUnits = idunitsHOR
-    iDDoc.ViewPreferences.VerticalMeasurementUnits = idunitsVER
-    'vrati kukanje za script
-    iDA.ScriptPreferences.UserInteractionLevel = idalerts
-    Application.StatusBar = "Saving InDesign file"
-'    sIssue = ThisWorkbook.Worksheets("Main List").Range("CurrentIssue").value
-    sIssue = GetCurrentIssue
-    iDDoc.save ThisWorkbook.Path & "\issue " & sIssue & "-" & Format(Now, "yy-mm-dd-hh-nn") & ".indd"
-    ' iDDoc.Windows.Add 'dodaje prozor, tj pokazuje skriveni dokument
-    'iDDoc.Close idSaveOptions.idNo
-    Application.StatusBar = "Done"
-    ThisWorkbook.Activate
-    MsgBox "Done for: " & sw.EndTimer / 1000 & " seconds."
-
-End Sub
-
 Sub NewBuildLayout()
 
 '    If Unplaced_AdsYesNo() = False Then Exit Sub
-    'Version 3.0
+    'Version 3.2
     checkTags = False
     Set processedLayers = New Collection
     Set processedTags = New Collection
@@ -1488,7 +1188,7 @@ Sub NewBuildLayout()
 
     Dim iDA   ' As InDesign.Application
     Dim iDDoc   ' As InDesign.Document
-    Dim iDPage    'As InDesign.Page
+    Dim iDPage    'As InDesign.Page 
     Dim idColor    'As InDesign.Color
     Dim iDRectangle    ' As InDesign.Rectangle
     Dim myY1, myX1, myY2, myX2    'geometric bounds for rectangle
@@ -1501,6 +1201,7 @@ Sub NewBuildLayout()
 
     Dim bOddPage As Boolean    '?
     Dim bCS3fix As Boolean    'do not empty frames if cs3fix is active
+    Dim errMsg As String ' Concatanate string to store error messages
     
     
     BuildNames ' added by Hussam
@@ -1516,7 +1217,7 @@ Sub NewBuildLayout()
     End If
     If DirExists("C:\regkey") = False Then
         MkDir "C:\regkey"
-        MsgBox "regkey created successfully!"
+        errMsg = errMsg & vbCrLf & "info: C:\regkey folder created!"
     End If
 
     Dim dHbleed As Double, dVbleed As Double    'za bleed
@@ -1527,10 +1228,10 @@ Sub NewBuildLayout()
     ThisWorkbook.Sheets("NewLayout").Activate
     If LCase(ThisWorkbook.Sheets("Settings").Range("Use_Export_Page_Settings").value) = "yes" Then
         lMinPage = ThisWorkbook.Sheets("Settings").Range("MinPageNo").value
-        lMaxPages = ThisWorkbook.Sheets("Settings").Range("MaxNoPages").value
+        lMaxPages = ThisWorkbook.Sheets("Settings").Range("BOO").value
     Else
         lMinPage = 2
-        lMaxPages = ThisWorkbook.Sheets("Settings").Range("B11").value
+        lMaxPages = ThisWorkbook.Sheets("NewLayout").Range("U1").value
     End If
 
     'add dummy pages at 1, to keep counters sinhronized. It was needed when Yaakov asked for removing of first page
@@ -1555,6 +1256,11 @@ Sub NewBuildLayout()
         
         'Set r = NName.RefersToRange
         Set r = GetPageRange(x2)
+        If r Is Nothing Then
+            Debug.Print "GetPageRange returned Nothing for page: " & x2
+        ElseIf r.Cells.Count = 0 Then
+            Debug.Print "GetPageRange returned an empty range for page: " & x2
+        End If
 
         cPages.Add r
         For Each rc In r.Cells
@@ -1612,12 +1318,39 @@ Sub NewBuildLayout()
     Dim idalerts    'da vratim nivo kukanja na pocetni nivo
     Dim idunitsHOR    'horizontalne jedinice
     Dim idunitsVER    'vertikalne jedinice
+    Dim currentPageCount As Integer
+    Dim oneFileFeature As Boolean
+    Dim FirstPage As Long
+    Dim LastPage As Long
+    Dim TargetFile As String
+
+    ' Ensure the sheet and range exist
+    On Error Resume Next
+    TargetFile = ThisWorkbook.Sheets("Additional_settings").Range("TargetFile").value
+    On Error GoTo 0
+    
+    ' Check if the value is valid and not empty
+    If Not IsError(TargetFile) Then
+        If Len(Trim(CStr(TargetFile))) > 0 Then
+            oneFileFeature = True
+        Else
+            oneFileFeature = False
+        End If
+    Else
+        MsgBox "'TargetFile' range is invalid or doesn't exist.",,"Error"  
+    End If
 
     idalerts = iDA.ScriptPreferences.UserInteractionLevel
     iDA.ScriptPreferences.UserInteractionLevel = 1699640946    'idUserInteractionLevels.idNeverInteract
     ' iDA.ScriptPreferences.EnableRedraw = False
     'iDA.Visible = True
     Set iDDoc = iDA.Open(Range("IndesignTemplate").value)
+
+    If oneFileFeature = True Then
+         Set iDDoc = iDA.Open(TargetFile)' destination file
+
+        'iDDestonation = iDA.ActiveDocument
+    End If
 
 
     '???============= Combining 2 files =================???
@@ -1627,7 +1360,31 @@ Sub NewBuildLayout()
 
         Dim second_template As Variant
 
-        second_template = ThisWorkbook.Sheets("Additional_settings").Range("b14").value
+        If oneFileFeature = true then
+
+                ' Open the main template
+                Set FirstTemplate = Range("IndesignTemplate").value
+
+                Set doc1 = iDA.Open(FirstTemplate)
+        
+                ' Loop through layers in the First document
+            For Each layer In doc1.Layers
+                ' Create a new layer in the Main document with the layers name
+                Set newLayer = iDDoc.Layers.Add
+                newLayer.Name = layer.Name
+                
+                ' Loop through page items in the current layer
+                For Each item In layer.pageItems
+                    ' Duplicate item to the new layer in the main document
+                    Set newItem = item.Duplicate(newLayer)
+                Next item
+            Next layer
+
+    End If 'oneFileFeature = True
+
+        ' Get the second template path from the sheet
+
+        second_template = ThisWorkbook.Sheets("Additional_settings").Range("d2").value
 
         ' Open the second document
         Set doc2 = iDA.Open(second_template)
@@ -1657,10 +1414,26 @@ Sub NewBuildLayout()
     ThisWorkbook.Activate
 
     Application.StatusBar = "Adding pages to InDesign"
-    For x = lMinPage To lMaxPages
-        iDDoc.Pages.Add 1701733408    'idAtEnd
-        Application.StatusBar = "Adding pages to InDesign: " & x & " of " & lMaxPages
-    Next x
+
+    If oneFileFeature = True then
+        currentPageCount = iDDoc.Pages.Count
+ 
+        ' Add missing pages until lMaxPages is reached
+        If currentPageCount < lMaxPages Then
+            For x = currentPageCount + 1 To lMaxPages
+                iDDoc.Pages.Add 1701733408 ' idAtEnd
+                Application.StatusBar = "Adding pages to InDesign: " & x & " of " & lMaxPages
+            Next x
+        End If
+
+    Else 'if oneFileFeature = False then
+        
+        For x = lMinPage To lMaxPages
+            iDDoc.Pages.Add 1701733408    'idAtEnd
+            Application.StatusBar = "Adding pages to InDesign: " & x & " of " & lMaxPages
+        Next x
+
+    End If
 
     ' We'll need to create a color. Check to see if the color already exists.
     On Error Resume Next
@@ -1680,7 +1453,7 @@ Sub NewBuildLayout()
     articleColor = ThisWorkbook.Sheets("Additional_settings").Range("b7").Interior.Color
 
     If articleColor = 0 Then
-        MsgBox "The Article Color have no fill."
+        errMsg = errMsg & vbCrLf & "-Error: The Article Color have no fill."
     End If
 
     ' Add a New layer To the document
@@ -1703,12 +1476,29 @@ Sub NewBuildLayout()
         Set LSPLayer = iDDoc.Layers.item(LSPLayerName)
     End If
     '???=========== Detect and handel new Layer ====================???
+    If oneFileFeature = True Then
 
+        FirstPage = lMinPage
+        LastPage = lMaxPages
 
-    For x = 2 To lNoOfPages + 1
-        Application.StatusBar = "Creating boxes for page: " & x & " (of " & lNoOfPages & ")"
+    Else 'if oneFileFeature = False then
+        FirstPage = 2
+        LastPage = lNoOfPages + 1
+    End If
+
+    For x = FirstPage To LastPage
+        Application.StatusBar = "Creating boxes for page: " & x & " (of " & LastPage & ")"
         Set iDPage = iDDoc.Pages(x)
+
+        if cPUnits(x).count = 0 Then
+            ' Skip to the next page if there are no units
+            MsgBox "Page " & x & " has no Cells.",,"Error"  
+        End If
+
         For Y = 1 To cPUnits(x).count
+
+            Debug.Print "Page " & x & " has: " & cPUnits(x).count & " units. working on unit: " & Y
+
             Set vc = cPUnits(x).item(Y)
             myY1 = cpUnitsPositions(x).item(Y)(1)
             myY2 = myY1 + cPUnitsSizes(x).item(Y)(4)
@@ -1737,8 +1527,17 @@ Sub NewBuildLayout()
 
                     If Len(sFile) > 0 And DirU(sFile) <> "" Then
                         If getExt(sFile) <> "indd" Then
-                            iDRectangle.place sFile
-                            iDRectangle.Fit 1668575078    'idFitOptions.idContentToFrame
+                            On Error Resume Next ' Allow errors without breaking the program
+                                iDRectangle.place sFile ' Try placing the file
+                                
+                                If Err.Number <> 0 Then
+                                    ' Show a message about the corrupted file
+                                    errMsg = errMsg & vbCrLf & "-Error: " & sFile & " is a corrupted file."
+                                    Err.Clear ' Clear the error to avoid interference later
+                                End If
+                                
+                                ' Continue with the next action, regardless of error
+                                iDRectangle.Fit 1668575078 ' idFitOptions.idContentToFrame
                         Else
                         'omoguci ovo kad plati
         '                    iDA.ScriptPreferences.UserInteractionLevel = 1699311169
@@ -1893,7 +1692,7 @@ Sub NewBuildLayout()
                         Next j
                     ElseIf checkTags = True And LayerProcessed = False Then 'If layer dosnt exsist, chck For xml Tag
 
-                        Debug.Print ("Layer " & elementName & " was Not found")
+                        errMsg = errMsg & vbCrLf & "-Error: Layer " & elementName & " was Not found."
 
                         '???========================= LAYER END | XML TAG BEGIN =====================================???
 
@@ -2025,23 +1824,27 @@ Sub NewBuildLayout()
 
                     'Debug.Print "Tag '" & elementName & "' DOES exist."
                 Else
-                    MsgBox "Tag Or Layer '" & elementName & "' does Not exist."
+                    errMsg = errMsg & vbCrLf & "-Error: Tag Or Layer '" & elementName & "' does Not exist."
                     'Exit Sub
                 End If
             End If 'If is Not an Article
 
         Next Y
-                                    'Debug.Print cPUnits(x).Count
+                                   ' Debug.Print cPUnits(x).Count
     Next x
 
-' Loop through all the pages in the document and delete extra pages
-For p = iDDoc.Pages.count To 1 Step -1 ' Loop backwards To avoid skipping pages
-    ' If the page index is greater than Or equal To deleteAfter
-    If p > lNoOfPages Then
+Dim maxpage As Integer
+maxpage = lNoOfPages + 1 
+
+For p = iDDoc.Pages.count To 1 Step -1
+    Debug.Print "maxpage is " maxpage & " Checking page: " & p
+    ' Only delete pages strictly greater than lNoOfPages
+    If p > maxpage Then
+        Debug.Print "maxpage is " maxpage & " Deleting page: " & p
         iDDoc.Pages(p).Delete
     End If
 Next p
-    
+        
     'vrati jedinice mere
     iDDoc.ViewPreferences.HorizontalMeasurementUnits = idunitsHOR
     iDDoc.ViewPreferences.VerticalMeasurementUnits = idunitsVER
@@ -2049,15 +1852,29 @@ Next p
     iDA.ScriptPreferences.UserInteractionLevel = idalerts
     Application.StatusBar = "Saving InDesign file"
 '    sIssue = ThisWorkbook.Worksheets("Main List").Range("CurrentIssue").value
+
+If oneFileFeature = True Then
+    If iDDoc.Saved Then
+        ' Save directly to the existing file path
+        iDDoc.save
+    Else
+        ' Force save without triggering Save As dialog
+        iDDoc.save TargetFile
+    End If
+    
+    errMsg = errMsg & vbCrLf & "-Info: oneFileFeature is on and your file was saved to " & TargetFile
+
+Else
+
     sIssue = GetCurrentIssue
     iDDoc.save ThisWorkbook.Path & "\issue " & sIssue & "-" & Format(Now, "yy-mm-dd-hh-nn") & ".indd"
-    
+End If
 
     ' iDDoc.Windows.Add 'dodaje prozor, tj pokazuje skriveni dokument
     'iDDoc.Close idSaveOptions.idNo
     Application.StatusBar = "Done"
     ThisWorkbook.Activate
-    MsgBox "Done for: " & sw.EndTimer / 1000 & " seconds."
+    MsgBox "Done for: " & sw.EndTimer / 1000 & " seconds." & vbCrLF & errMsg
 
 End Sub
 Function GetPositionsRedni(rSout As Range, rSearchIn As Range) As Long 'vraca od 1 do 8
@@ -2190,7 +2007,7 @@ Public Sub MarkLastPage()
 '    End If
 '    lPages = Range("MaxNoPages").Value
 
-    lPages = ThisWorkbook.Sheets("Settings").Range("B11").value
+    lPages = ThisWorkbook.Sheets("Settings").Range("P11").value
 
 '    If lPages < 2 Or lPages > UBound(PagesArr) Then
 '        lPages = UBound(PagesArr)
@@ -2225,5 +2042,43 @@ skipEOB:
         .PatternTintAndShade = 0
     End With
 End Sub
+
+' Sub AddAndOverwritePages()
+
+'         Dim lMinPage As Integer
+'         Dim lMaxPages As Integer
+'         Dim currentPageCount As Integer
+'         Dim x As Integer
+    
+'         ' Example values for demonstration (replace with your actual variables)
+'         lMinPage = 14
+'         lMaxPages = 20
+    
+'         ' Get the current number of pages in the document
+'         currentPageCount = iDDoc.Pages.Count
+    
+'         Application.StatusBar = "Adding pages to InDesign..."
+    
+'         ' Step 1: Add missing pages until lMaxPages is reached
+'         If currentPageCount < lMaxPages Then
+'             For x = currentPageCount + 1 To lMaxPages
+'                 iDDoc.Pages.Add 1701733408 ' idAtEnd
+'                 Application.StatusBar = "Adding pages to InDesign: " & x & " of " & lMaxPages
+'             Next x
+'         End If
+    
+'         ' Step 2: Overwrite pages in the specified range
+'         For x = lMinPage To lMaxPages
+'             ' Overwrite the content of the page (this depends on what "overwrite" means for your case)
+'             ' For example, clearing or replacing page content could be done here
+'             Application.StatusBar = "Working on page: " & x & " of " & lMaxPages
+'             ' Implement your page-specific operations here
+'         Next x
+    
+'         Application.StatusBar = "Operation complete!"
+    
+' End Sub
+    
+
 
 
